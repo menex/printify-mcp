@@ -1,12 +1,11 @@
-import * as fs from 'fs';
-import * as path from 'path';
 import sharp from 'sharp';
 import Replicate from 'replicate';
-import { writeFile } from 'fs/promises';
+import axios from 'axios';
+import { DefaultsManager } from './model-manager.js';
 
 export class ReplicateClient {
   private client: Replicate;
-  private tempDir: string;
+  private defaultsManager: DefaultsManager;
 
   constructor(apiToken: string) {
     // Initialize the Replicate client with the API token
@@ -14,69 +13,177 @@ export class ReplicateClient {
       auth: apiToken,
     });
 
-    // Create a temporary directory for downloaded images if it doesn't exist
-    this.tempDir = path.join(process.cwd(), 'temp');
-    if (!fs.existsSync(this.tempDir)) {
-      fs.mkdirSync(this.tempDir, { recursive: true });
-    }
+    // Initialize the defaults manager
+    this.defaultsManager = new DefaultsManager();
+  }
+
+  // No need for getTempDir method anymore
+
+  /**
+   * Get the defaults manager instance
+   * @returns The defaults manager
+   */
+  getDefaultsManager(): DefaultsManager {
+    return this.defaultsManager;
   }
 
   /**
-   * Generate an image using Flux 1.1 Pro model and save it to a file
+   * Set a default value for any parameter
+   * @param option The option name to set
+   * @param value The value to set
+   */
+  setDefault(option: string, value: any): void {
+    this.defaultsManager.setDefault(option, value);
+  }
+
+  /**
+   * Get the current default value for an option
+   * @param option The option name
+   * @returns The current default value
+   */
+  getDefault(option: string): any {
+    return this.defaultsManager.getDefault(option);
+  }
+
+  /**
+   * Get all current defaults
+   * @returns All current default values
+   */
+  getAllDefaults(): Record<string, any> {
+    return this.defaultsManager.getAllDefaults();
+  }
+
+  /**
+   * Get a list of available models with their capabilities
+   * @returns Array of available models with details
+   */
+  getAvailableModels(): Array<{id: string, name: string, description: string, capabilities: string[]}> {
+    return this.defaultsManager.getAvailableModels();
+  }
+
+  /**
+   * Get the current default model
+   * @returns The current default model ID
+   */
+  getDefaultModel(): string {
+    return this.defaultsManager.getDefault('model');
+  }
+
+  /**
+   * Generate an image using the appropriate Flux model and return it as a buffer
    * @param prompt The text prompt to generate an image from
    * @param options Additional options for the model
-   * @returns The path to the generated image file
+   * @param modelId Optional model ID override
+   * @returns The image data as a Buffer
    */
-  async generateImage(prompt: string, options: any = {}): Promise<string> {
+  async generateImage(prompt: string, options: any = {}, modelId?: string): Promise<Buffer> {
     try {
-      // Set default options
-      const input = {
-        prompt: prompt,
-        prompt_upsampling: true,
+      // Convert camelCase options to snake_case for the API
+      const apiOptions: any = {};
 
-        // Support for aspect ratio (if provided)
-        ...(options.aspectRatio ? { aspect_ratio: options.aspectRatio } : {}),
+      // Map common options
+      if (options.aspectRatio) apiOptions.aspect_ratio = options.aspectRatio;
+      if (options.width) apiOptions.width = options.width;
+      if (options.height) apiOptions.height = options.height;
+      if (options.seed !== undefined) apiOptions.seed = options.seed;
+      if (options.numInferenceSteps) apiOptions.num_inference_steps = options.numInferenceSteps;
+      if (options.guidanceScale) apiOptions.guidance_scale = options.guidanceScale;
+      if (options.negativePrompt) apiOptions.negative_prompt = options.negativePrompt;
+      // Always set output_format, defaulting to png unless explicitly specified
+      apiOptions.output_format = options.outputFormat || "png";
+      if (options.safetyTolerance !== undefined) apiOptions.safety_tolerance = options.safetyTolerance;
 
-        // Support for width and height (if provided)
-        ...(options.width ? { width: options.width } : {}),
-        ...(options.height ? { height: options.height } : {}),
+      // Map model-specific options
+      if (options.promptUpsampling !== undefined) apiOptions.prompt_upsampling = options.promptUpsampling;
+      if (options.outputQuality !== undefined) apiOptions.output_quality = options.outputQuality;
+      if (options.raw !== undefined) apiOptions.raw = options.raw;
+      if (options.imagePromptStrength !== undefined) apiOptions.image_prompt_strength = options.imagePromptStrength;
 
-        // Support for seed (if provided)
-        ...(options.seed ? { seed: options.seed } : {}),
+      // Use the defaults manager to prepare the input with merged options
+      const mergedOptions = { ...options, ...apiOptions };
+      const { modelId: selectedModelId, input } = this.defaultsManager.prepareModelInput(prompt, mergedOptions);
 
-        // Support for num_inference_steps (if provided)
-        ...(options.num_inference_steps ? { num_inference_steps: options.num_inference_steps } : {}),
+      console.log(`Using model: ${selectedModelId}`);
+      console.log(`Input parameters: ${JSON.stringify(input, null, 2)}`);
 
-        // Support for guidance_scale (if provided)
-        ...(options.guidance_scale ? { guidance_scale: options.guidance_scale } : {}),
+      // Run the model using the Replicate client
+      const output = await this.client.run(selectedModelId as any, { input });
 
-        // Support for negative_prompt (if provided)
-        ...(options.negative_prompt ? { negative_prompt: options.negative_prompt } : {}),
+      console.log('Replicate output type:', output ? (output.constructor ? output.constructor.name : typeof output) : 'null');
 
-        // Include any other options
-        ...options
-      };
+      // Handle different output types from Replicate
+      let imageData: Buffer;
 
-      // Generate a temporary file path for the output image
-      const outputFilename = `${Date.now()}_${Math.random().toString(36).substring(2, 15)}.jpg`;
-      const outputPath = path.join(this.tempDir, outputFilename);
+      if (output === null || output === undefined) {
+        throw new Error('Replicate returned null or undefined output');
+      } else if (typeof output === 'string') {
+        // If output is a URL, download the image
+        console.log('Replicate returned a string (URL):', output);
+        const response = await axios.get(output, { responseType: 'arraybuffer' });
+        imageData = Buffer.from(response.data);
+      } else if (Buffer.isBuffer(output)) {
+        // If output is already a Buffer
+        console.log('Replicate returned a Buffer');
+        imageData = output;
+      } else if (output instanceof Uint8Array || output instanceof ArrayBuffer) {
+        // If output is a Uint8Array or ArrayBuffer
+        console.log('Replicate returned a Uint8Array or ArrayBuffer');
+        imageData = Buffer.from(output);
+      } else if (typeof output === 'object' && output !== null) {
+        // If output is a FileOutput object or similar
+        console.log('Replicate returned an object:', Object.keys(output));
 
-      // Run the model using the Replicate client - exactly as in the example
-      const output = await this.client.run(
-        "black-forest-labs/flux-1.1-pro",
-        { input }
-      );
+        // Try to get the file content
+        if ('file' in output && output.file) {
+          console.log('Object has a file property');
+          // Use type assertion to handle FileOutput object
+          const fileContent = await (output.file as any).arrayBuffer();
+          imageData = Buffer.from(fileContent);
+        } else if ('arrayBuffer' in output && typeof output.arrayBuffer === 'function') {
+          console.log('Object has an arrayBuffer method');
+          // Use type assertion for the arrayBuffer method
+          const arrayBuffer = await (output as any).arrayBuffer();
+          imageData = Buffer.from(arrayBuffer);
+        } else if ('blob' in output && typeof output.blob === 'function') {
+          console.log('Object has a blob method');
+          // Use type assertion for the blob method
+          const blob = await (output as any).blob();
+          const arrayBuffer = await (blob as any).arrayBuffer();
+          imageData = Buffer.from(arrayBuffer);
+        } else if ('text' in output && typeof output.text === 'function') {
+          console.log('Object has a text method');
+          // Use type assertion for the text method
+          const text = await (output as any).text();
+          // If the text is a URL, download the image
+          if (text.startsWith('http')) {
+            const response = await axios.get(text, { responseType: 'arraybuffer' });
+            imageData = Buffer.from(response.data);
+          } else {
+            imageData = Buffer.from(text);
+          }
+        } else {
+          // Last resort: try to stringify the object and see if it's a URL
+          const str = output.toString();
+          console.log('Object toString():', str);
+          if (str.startsWith('http')) {
+            const response = await axios.get(str, { responseType: 'arraybuffer' });
+            imageData = Buffer.from(response.data);
+          } else {
+            throw new Error(`Unsupported Replicate output type: ${output.constructor ? output.constructor.name : typeof output}`);
+          }
+        }
+      } else {
+        throw new Error(`Unsupported Replicate output type: ${typeof output}`);
+      }
 
-      // Save the output directly to a file - exactly as in the example
-      await writeFile(outputPath, output as any);
-
-      return outputPath;
+      return imageData;
     } catch (error: any) {
       // Provide detailed error information
       const errorDetails = {
         message: error.message,
         prompt: prompt,
-        options: JSON.stringify(options)
+        options: JSON.stringify(options),
+        modelId: modelId || this.getDefault('model')
       };
 
       throw new Error(`Replicate API error: ${error.message}\nDetails: ${JSON.stringify(errorDetails, null, 2)}`);
@@ -85,42 +192,38 @@ export class ReplicateClient {
 
   /**
    * Process an image with Sharp to ensure it's a valid PNG for Printify
-   * @param inputPath The path to the input image from Replicate
-   * @param outputFilename The filename to save the processed image as
-   * @returns The path to the processed image ready for Printify upload
+   * @param imageData The image data buffer from Replicate
+   * @param outputFormat The desired output format (png, jpeg, webp)
+   * @returns A buffer containing the processed image
    */
-  async processImageForPrintify(inputPath: string, outputFilename: string): Promise<string> {
+  async processImageForPrintify(imageData: Buffer, outputFormat: string = 'png'): Promise<Buffer> {
+    // Ensure outputFormat is always defined and defaults to png
+    outputFormat = outputFormat || 'png';
     try {
-      // Generate a temporary file path for the output
-      const tempFilePath = path.join(this.tempDir, outputFilename);
+      console.log(`Processing image with Sharp to ${outputFormat} format`);
 
-      // Process the image with Sharp to ensure it's a valid PNG for Printify
-      // This converts any image format to PNG and ensures it has a valid signature
-      await sharp(inputPath)
-        .png({ quality: 100 })
-        .toFile(tempFilePath);
+      // Process the image with Sharp to ensure it's valid for Printify
+      let sharpInstance = sharp(imageData);
 
-      return tempFilePath;
+      // Apply format-specific options
+      if (outputFormat === 'png') {
+        sharpInstance = sharpInstance.png({ quality: 100 });
+      } else if (outputFormat === 'jpeg' || outputFormat === 'jpg') {
+        sharpInstance = sharpInstance.jpeg({ quality: 100 });
+      } else if (outputFormat === 'webp') {
+        sharpInstance = sharpInstance.webp({ quality: 100 });
+      }
+
+      // Get the processed image as a buffer
+      const processedBuffer = await sharpInstance.toBuffer();
+      console.log(`Image processed successfully, buffer size: ${processedBuffer.length} bytes`);
+
+      return processedBuffer;
     } catch (error) {
       console.error('Error processing image for Printify:', error);
       throw error;
     }
   }
 
-  /**
-   * Clean up temporary files
-   * @param filePaths Array of file paths to delete
-   */
-  async cleanupTempFiles(filePaths: string[]): Promise<void> {
-    for (const filePath of filePaths) {
-      try {
-        if (fs.existsSync(filePath)) {
-          fs.unlinkSync(filePath);
-        }
-      } catch (error) {
-        console.error(`Error deleting temporary file ${filePath}:`, error);
-        // Continue with other files even if one fails
-      }
-    }
-  }
+  // No need for cleanupTempFiles method anymore since we're not creating temporary files
 }

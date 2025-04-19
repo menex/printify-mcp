@@ -78,6 +78,7 @@ This MCP server provides the following capabilities:
 - npm (v7 or higher)
 - Printify API key
 - Replicate API token (for AI image generation)
+- ImgBB API key (required if using the Flux 1.1 Pro Ultra model)
 
 ## Installation
 
@@ -104,6 +105,10 @@ You have two options for configuring the environment variables needed by the ser
 ```
 # Required for all functionality
 PRINTIFY_API_KEY=your_printify_api_key
+
+# Required if using the Flux 1.1 Pro Ultra model for image generation
+# The Ultra model generates high-resolution images that are too large for direct base64 upload
+IMGBB_API_KEY=your_imgbb_api_key
 
 # Optional: If not provided, the first shop in your account will be used
 PRINTIFY_SHOP_ID=your_shop_id
@@ -258,6 +263,7 @@ If you prefer to run the server in a Docker container, you have two options:
    PRINTIFY_API_KEY=your_printify_api_key
    PRINTIFY_SHOP_ID=your_shop_id (optional)
    REPLICATE_API_TOKEN=your_replicate_api_token
+   IMGBB_API_KEY=your_imgbb_api_key (required for Flux 1.1 Pro Ultra model)
    ```
 
 4. Create a temp directory for temporary files:
@@ -287,6 +293,11 @@ If you prefer to run the server in a Docker container, you have two options:
    **Note:** If you want to use the image generation features (generate-and-upload-image tool), add the Replicate API token:
    ```bash
    -e REPLICATE_API_TOKEN=your_replicate_api_token \
+   ```
+
+   **Important:** If you want to use the Flux 1.1 Pro Ultra model for image generation, you MUST also add the ImgBB API key:
+   ```bash
+   -e IMGBB_API_KEY=your_imgbb_api_key \
    ```
 
    **Option B: Using a .env file**
@@ -336,6 +347,8 @@ If you prefer to run the server in a Docker container, you have two options:
      - PRINTIFY_SHOP_ID=your_shop_id_optional
      # Optional: Only needed if you want to use image generation features
      - REPLICATE_API_TOKEN=your_replicate_api_token
+     # Required if using the Flux 1.1 Pro Ultra model for image generation
+     - IMGBB_API_KEY=your_imgbb_api_key
    ```
 
    **Option B: Create a `.env` file**
@@ -344,6 +357,8 @@ If you prefer to run the server in a Docker container, you have two options:
    PRINTIFY_SHOP_ID=your_shop_id (optional)
    # Optional: Only needed if you want to use image generation features
    REPLICATE_API_TOKEN=your_replicate_api_token
+   # Required if using the Flux 1.1 Pro Ultra model for image generation
+   IMGBB_API_KEY=your_imgbb_api_key
    ```
    Then uncomment the .env volume mount in docker-compose.yml:
    ```yaml
@@ -547,26 +562,53 @@ Parameters:
 
 #### `generate-and-upload-image`
 
-Generate an image using Replicate's Flux 1.1 Pro model, process it with Sharp, and upload it to Printify in one operation. This tool combines AI image generation with Printify integration for a seamless workflow.
+Generate an image using Replicate's Flux models, process it with Sharp, and upload it to Printify in one operation. This tool combines AI image generation with Printify integration for a seamless workflow.
 
 The tool performs four steps:
-1. Generates an image using Replicate's Flux 1.1 Pro model based on your text prompt
-2. Processes the image with Sharp to ensure it's a valid PNG with the correct format for Printify
+1. Generates an image using Replicate's Flux models based on your text prompt
+2. Processes the image with Sharp to ensure it's a valid image with the correct format for Printify
 3. Uploads the processed image to your Printify account
 4. Cleans up temporary files to avoid disk space issues
 
 Parameters:
 - `prompt` (string): Text prompt for image generation
 - `fileName` (string): File name for the uploaded image
+- `model` (string, optional): Override the default model (e.g., "black-forest-labs/flux-1.1-pro-ultra")
 - `width` (number, optional): Image width in pixels (default: 1024)
 - `height` (number, optional): Image height in pixels (default: 1024)
 - `aspectRatio` (string, optional): Aspect ratio (e.g., '16:9', '4:3', '1:1'). If provided, overrides width and height
+- `outputFormat` (string, optional): Output format ("jpeg", "png", "webp") (default: "png")
 - `numInferenceSteps` (number, optional): Number of inference steps (default: 25)
 - `guidanceScale` (number, optional): Guidance scale (default: 7.5)
 - `negativePrompt` (string, optional): Negative prompt (default: "low quality, bad quality, sketches")
 - `seed` (number, optional): Random seed for reproducible generation
+- `raw` (boolean, optional): Generate less processed, more natural-looking images (default: true for Flux 1.1 Pro Ultra)
 
 **Note:** This tool requires the `REPLICATE_API_TOKEN` environment variable to be set with a valid Replicate API token. You can get a token from [replicate.com](https://replicate.com).
+
+**Important:** If you want to use the Flux 1.1 Pro Ultra model, you MUST also set the `IMGBB_API_KEY` environment variable. The Ultra model generates high-resolution images that are too large for direct base64 upload to Printify. You can get a free API key from [api.imgbb.com](https://api.imgbb.com).
+
+#### `generate-image`
+
+Generate an image using Replicate's Flux models and save it to a local file without uploading to Printify. This tool is useful when you want to generate images for other purposes or when you want to review and potentially edit images before uploading them to Printify.
+
+Parameters:
+- `prompt` (string): Text prompt for image generation
+- `outputPath` (string): Full path where the generated image should be saved
+- `model` (string, optional): Override the default model (e.g., "black-forest-labs/flux-1.1-pro-ultra")
+- `width` (number, optional): Image width in pixels (default: 1024)
+- `height` (number, optional): Image height in pixels (default: 1024)
+- `aspectRatio` (string, optional): Aspect ratio (e.g., '16:9', '4:3', '1:1'). If provided, overrides width and height
+- `outputFormat` (string, optional): Output format ("jpeg", "png", "webp") (default: "png")
+- `numInferenceSteps` (number, optional): Number of inference steps (default: 25)
+- `guidanceScale` (number, optional): Guidance scale (default: 7.5)
+- `negativePrompt` (string, optional): Negative prompt (default: "low quality, bad quality, sketches")
+- `seed` (number, optional): Random seed for reproducible generation
+- `raw` (boolean, optional): Generate less processed, more natural-looking images (Flux 1.1 Pro Ultra only)
+
+**Note:** This tool requires the `REPLICATE_API_TOKEN` environment variable to be set with a valid Replicate API token. You can get a token from [replicate.com](https://replicate.com).
+
+Unlike the `generate-and-upload-image` tool, this tool doesn't require the ImgBB API key since it saves directly to a local file.
 
 #### `upload-image`
 
@@ -617,6 +659,9 @@ To use the Printify features of this MCP server, you'll need a Printify API key.
 
    # For image generation with Replicate
    REPLICATE_API_TOKEN=your_replicate_token_here
+
+   # Required if using the Flux 1.1 Pro Ultra model for image generation
+   IMGBB_API_KEY=your_imgbb_api_key_here
    ```
 
    The server will automatically initialize the Printify API client using the API key from the environment variable. If you don't specify a shop ID, the server will use the first shop in your account as the default.
@@ -627,11 +672,13 @@ To use the Printify features of this MCP server, you'll need a Printify API key.
    # On Windows
    set PRINTIFY_API_KEY=your_api_key_here
    set REPLICATE_API_TOKEN=your_replicate_token_here
+   set IMGBB_API_KEY=your_imgbb_api_key_here
    npm start
 
    # On macOS/Linux
    export PRINTIFY_API_KEY=your_api_key_here
    export REPLICATE_API_TOKEN=your_replicate_token_here
+   export IMGBB_API_KEY=your_imgbb_api_key_here
    npm start
    ```
 
@@ -643,6 +690,14 @@ To use the image generation features of this MCP server, you'll need a Replicate
 2. Go to your account settings
 3. Generate an API token
 4. Add the token to your `.env` file as shown above
+
+### ImgBB API Key
+
+If you want to use the Flux 1.1 Pro Ultra model for image generation, you MUST have an ImgBB API key. The Ultra model generates high-resolution images that are too large for direct base64 upload to Printify, so we use ImgBB as an intermediary. Here's how to get an API key:
+
+1. Create an account or log in at [imgbb.com](https://imgbb.com)
+2. Go to [api.imgbb.com](https://api.imgbb.com) to get your API key
+3. Add the key to your `.env` file as shown above
 
 ## Workflow Examples
 
@@ -808,6 +863,11 @@ Users can run the Printify MCP server without installing Node.js by using the Do
    -e REPLICATE_API_TOKEN=their_replicate_api_token \
    ```
 
+   **Important:** If they want to use the Flux 1.1 Pro Ultra model for image generation, they MUST also add the ImgBB API key:
+   ```bash
+   -e IMGBB_API_KEY=their_imgbb_api_key \
+   ```
+
    **Option B: Using a .env file**
    First, create a .env file with their API keys:
    ```
@@ -815,6 +875,8 @@ Users can run the Printify MCP server without installing Node.js by using the Do
    PRINTIFY_SHOP_ID=their_shop_id (optional)
    # Optional: Only needed if they want to use image generation features
    REPLICATE_API_TOKEN=their_replicate_api_token
+   # Required if using the Flux 1.1 Pro Ultra model for image generation
+   IMGBB_API_KEY=their_imgbb_api_key
    ```
 
    Then run the container:

@@ -1,3 +1,5 @@
+#!/usr/bin/env node
+
 // This file is the main entry point for the package when used as a dependency
 // It exports the compiled JavaScript from the dist directory
 

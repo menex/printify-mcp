@@ -1,5 +1,7 @@
 import * as fs from 'fs';
+import * as path from 'path';
 import Printify from 'printify-sdk-js';
+import sharp from 'sharp';
 
 // Shop interface
 export interface PrintifyShop {
@@ -22,7 +24,7 @@ export class PrintifyAPI {
     // Initialize the Printify SDK client
     this.client = new Printify({
       accessToken: apiToken,
-      shopId: shopId,
+      shopId: shopId || undefined, // Only pass shopId if it's provided
       enableLogging: true
     });
 
@@ -32,6 +34,8 @@ export class PrintifyAPI {
     if (shopId) {
       this.shopId = shopId;
       console.log('Shop ID set to:', shopId);
+    } else {
+      console.log('No shop ID provided. Will attempt to select the first available shop during initialization.');
     }
   }
 
@@ -482,7 +486,7 @@ export class PrintifyAPI {
       }
 
       // If it's a file path, try to read the file and convert to base64
-      if (source.startsWith('file://') || source.includes(':\\') || source.includes(':/')) {
+      if (source.startsWith('file://') || source.includes(':\\') || source.includes(':/') || !source.startsWith('data:')) {
         try {
           console.log(`Attempting to read file from: ${source}`);
 
@@ -501,7 +505,25 @@ export class PrintifyAPI {
 
           // Check if file exists
           if (!fs.existsSync(filePath)) {
-            throw new Error(`File not found: ${filePath}`);
+            const error = new Error(`File not found: ${filePath}`);
+            console.error('File not found error:', error);
+            console.error('Current working directory:', process.cwd());
+            console.error('File path type:', typeof filePath);
+            console.error('Absolute path check:', path.isAbsolute(filePath) ? 'Absolute' : 'Relative');
+
+            // Try to list the directory contents if possible
+            try {
+              const dir = path.dirname(filePath);
+              if (fs.existsSync(dir)) {
+                console.error('Directory exists. Contents:', fs.readdirSync(dir));
+              } else {
+                console.error('Parent directory does not exist:', dir);
+              }
+            } catch (dirError) {
+              console.error('Error checking directory:', dirError);
+            }
+
+            throw error;
           }
 
           // Get file stats
@@ -516,16 +538,50 @@ export class PrintifyAPI {
             throw new Error(`File is too large (${Math.round(stats.size / (1024 * 1024))}MB). Maximum size is 10MB.`);
           }
 
-          // Read the file
-          const fileData = fs.readFileSync(filePath);
-          console.log(`Successfully read ${fileData.length} bytes from file`);
+          // Process the image with Sharp
+          console.log('Processing image with Sharp before uploading...');
+
+          // Use Sharp directly
+          const sharpInstance = sharp(filePath);
+          const outputFormat = path.extname(filePath).toLowerCase() === '.jpg' ||
+                              path.extname(filePath).toLowerCase() === '.jpeg' ? 'jpeg' : 'png';
+
+          // Convert to the appropriate format
+          if (outputFormat === 'jpeg') {
+            sharpInstance.jpeg({ quality: 100 });
+          } else {
+            sharpInstance.png({ quality: 100 });
+          }
+
+          // Get the buffer
+          const buffer = await sharpInstance.toBuffer();
+          console.log(`Image processed successfully: ${buffer.length} bytes`);
+
+          // Determine the MIME type
+          const mimeType = outputFormat === 'jpeg' ? 'image/jpeg' : 'image/png';
 
           // Convert to base64
-          const base64Data = fileData.toString('base64');
+          const base64Data = buffer.toString('base64');
           console.log(`Converted to base64 string of length ${base64Data.length}`);
 
-          // Upload using the SDK
-          return await this.client.uploads.uploadImage({ file_name: fileName, contents: base64Data });
+          // Create data URL with the proper MIME type prefix
+          const dataUrl = `data:${mimeType};base64,${base64Data}`;
+          console.log(`Uploading with data URL (MIME type: ${mimeType})`);
+
+          try {
+            console.log(`Uploading to Printify with file_name: ${fileName}, contents length: ${base64Data.length}`);
+            // Use the dataUrl instead of just the base64Data
+            const result = await this.client.uploads.uploadImage({ file_name: fileName, contents: dataUrl.split(',')[1] });
+            console.log('Upload successful, result:', result);
+            return result;
+          } catch (uploadError: any) {
+            console.error('Error during Printify upload:', uploadError);
+            if (uploadError.response) {
+              console.error('Response status:', uploadError.response.status);
+              console.error('Response data:', JSON.stringify(uploadError.response.data, null, 2));
+            }
+            throw uploadError;
+          }
         } catch (error: any) {
           console.error('Error reading file:', error);
           const errorMessage = error.message || 'Unknown error';
@@ -538,25 +594,52 @@ export class PrintifyAPI {
           detailedError += '3. Try using a URL or base64 encoded string instead\n';
           detailedError += '\nFile processing details:\n';
           detailedError += `- Attempted to read from: ${source}\n`;
+          detailedError += `- Current working directory: ${process.cwd()}\n`;
+
+          // Add stack trace
+          if (error.stack) {
+            detailedError += `\nStack trace:\n${error.stack}\n`;
+          }
 
           throw new Error(detailedError);
         }
-      }
-
-      // If source is base64 data with data URL prefix
-      if (source.startsWith('data:image/')) {
+      } else if (source.startsWith('data:image/')) {
+        // If source is base64 data with data URL prefix
         // Extract the base64 content
         const base64Content = source.split(',')[1];
         console.log(`Uploading image with base64 data from data URL (length: ${base64Content.length})`);
         return await this.client.uploads.uploadImage({ file_name: fileName, contents: base64Content });
+      } else {
+        // Otherwise, assume it's a base64 encoded string without prefix
+        console.log(`Uploading image with base64 data (length: ${source.length})`);
+        return await this.client.uploads.uploadImage({ file_name: fileName, contents: source });
+      }
+    } catch (error: any) {
+      console.error('Error uploading image:', error);
+
+      // Add detailed debugging information
+      const debugInfo: any = {
+        fileName,
+        sourceType: typeof source,
+        sourceLength: source.length,
+        currentWorkingDir: process.cwd(),
+        errorMessage: error.message,
+        errorStack: error.stack
+      };
+
+      console.error('Detailed upload error information:', JSON.stringify(debugInfo, null, 2));
+
+      // If there's a response object, extract and log the full response data
+      if (error.response) {
+        console.error('Response status:', error.response.status);
+        console.error('Response data:', JSON.stringify(error.response.data, null, 2));
+
+        // Add the full response data to the debug info
+        debugInfo.responseStatus = error.response.status;
+        debugInfo.responseData = error.response.data;
       }
 
-      // Otherwise, assume it's a base64 encoded string without prefix
-      console.log(`Uploading image with base64 data (length: ${source.length})`);
-      return await this.client.uploads.uploadImage({ file_name: fileName, contents: source });
-    } catch (error) {
-      console.error('Error uploading image:', error);
-      throw this.enhanceError(error, { fileName, sourceType: typeof source, sourceLength: source.length });
+      throw this.enhanceError(error, debugInfo);
     }
   }
 }

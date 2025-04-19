@@ -19,6 +19,8 @@ services:
       # - PRINTIFY_SHOP_ID=your_shop_id_optional
       # Optional: Only needed if you want to use image generation features
       # - REPLICATE_API_TOKEN=your_replicate_api_token
+      # Required if using the Flux 1.1 Pro Ultra model for image generation
+      # - IMGBB_API_KEY=your_imgbb_api_key
 
       # Option 2: Use environment variables from .env file
       # - PRINTIFY_API_KEY=${PRINTIFY_API_KEY}
