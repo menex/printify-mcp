@@ -24,7 +24,7 @@
   ],
   "scripts": {
     "build": "tsc && npm run copy-docs",
-    "copy-docs": "mkdir -p dist/docs && cp -r src/docs/* dist/docs/",
+    "copy-docs": "node -e \"const fs = require('fs'); const path = require('path'); if (!fs.existsSync('dist/docs')) fs.mkdirSync('dist/docs', { recursive: true }); fs.readdirSync('src/docs').forEach(file => fs.copyFileSync(path.join('src/docs', file), path.join('dist/docs', file)));\"",
     "start": "node dist/index.js",
     "dev": "tsc -w & node --watch dist/index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
