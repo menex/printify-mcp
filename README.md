@@ -166,9 +166,51 @@ This will start the server in development mode with automatic reloading when fil
 
 ## Using with Claude Desktop
 
-To use this MCP server with Claude Desktop, follow these steps:
+There are two ways to use this MCP server with Claude Desktop:
 
-### Step 1: Clone and Set Up the Repository
+### Option 1: Install from npm (Recommended)
+
+1. Install the package globally:
+   ```bash
+   npm install -g printify-mcp
+   ```
+
+2. Configure your environment variables using either a `.env` file in your current directory or system environment variables as described in the [Configuration](#configuration) section.
+
+3. Configure Claude Desktop:
+   - Open Claude Desktop
+   - Go to Settings > MCP Servers
+   - Click "Add Server"
+   - Enter a name for the server (e.g., "Printify MCP")
+   - Select "Command" as the transport type
+   - Enter `printify-mcp` as the command
+   - No arguments are needed
+   - Click "Add Server"
+
+4. Test the connection by asking Claude to check the Printify status:
+   ```
+   Can you check the status of my Printify connection?
+   ```
+
+### Option 2: Use with npx
+
+If you don't want to install the package globally, you can use npx:
+
+1. Configure your environment variables as described in the [Configuration](#configuration) section.
+
+2. Configure Claude Desktop:
+   - Open Claude Desktop
+   - Go to Settings > MCP Servers
+   - Click "Add Server"
+   - Enter a name for the server (e.g., "Printify MCP")
+   - Select "Command" as the transport type
+   - Enter `npx` as the command
+   - Enter `printify-mcp` as the arguments
+   - Click "Add Server"
+
+### Option 3: Clone and Set Up the Repository
+
+If you prefer to work with the source code directly:
 
 1. Clone this repository to your local machine:
    ```bash
@@ -184,57 +226,37 @@ To use this MCP server with Claude Desktop, follow these steps:
 
 3. Configure your environment variables using either a `.env` file or system environment variables as described in the [Configuration](#configuration) section.
 
-### Step 2: Get the Full Path to the Built Server
+4. Get the full absolute path to the compiled JavaScript file:
 
-You'll need the full absolute path to the compiled JavaScript file:
+   **Windows:**
+   ```cmd
+   cd dist
+   echo %CD%\index.js
+   ```
 
-**Windows:**
-```
-C:\path\to\printify-mcp\dist\index.js
-```
+   **macOS/Linux:**
+   ```bash
+   realpath dist/index.js
+   ```
 
-**macOS/Linux:**
-```
-/path/to/printify-mcp/dist/index.js
-```
+5. Configure Claude Desktop:
+   - Open Claude Desktop
+   - Go to Settings > MCP Servers
+   - Click "Add Server"
+   - Enter a name for the server (e.g., "Printify MCP")
+   - Select "Command" as the transport type
+   - Enter the path to Node.js as the command (e.g., `node`)
+   - Enter the **full absolute path** to the built server as the arguments
+   - Click "Add Server"
 
-You can get this path by running:
+6. Start the server:
+   ```bash
+   npm start
+   ```
 
-**Windows (Command Prompt):**
-```cmd
-cd dist
-echo %CD%\index.js
-```
+   Keep this terminal window open while you're using Claude Desktop.
 
-**macOS/Linux:**
-```bash
-realpath dist/index.js
-```
-
-### Step 3: Configure Claude Desktop
-
-1. Open Claude Desktop
-2. Go to Settings > MCP Servers
-3. Click "Add Server"
-4. Enter a name for the server (e.g., "Printify MCP")
-5. Select "Command" as the transport type
-6. Enter the path to Node.js as the command:
-   - Windows: `C:\Program Files\nodejs\node.exe` (or wherever Node.js is installed)
-   - macOS/Linux: `/usr/bin/node` or `/usr/local/bin/node` (find it with `which node`)
-7. Enter the **full absolute path** to the built server as the arguments (the path you obtained in Step 2)
-8. Click "Add Server"
-
-### Step 4: Start the Server
-
-Before using the server with Claude Desktop, you need to start it:
-
-```bash
-npm start
-```
-
-Keep this terminal window open while you're using Claude Desktop. The server needs to be running for Claude to communicate with it.
-
-### Step 5: Test the Connection
+### Testing the Connection
 
 In a conversation with Claude, you can test if the server is working by asking Claude to check the Printify status:
 

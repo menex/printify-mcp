@@ -8,6 +8,11 @@ import * as fs from "fs";
 import sharp from "sharp";
 import * as path from "path";
 
+// Export the main classes and types for use as a library
+export { PrintifyAPI, type PrintifyShop } from './printify-api.js';
+export { ReplicateClient } from './replicate-client.js';
+export { createPrintifyMcpServer } from './exports.js';
+
 // Load environment variables from .env file
 dotenv.config();
 
@@ -1657,3 +1662,6 @@ const transport = new StdioServerTransport();
 await server.connect(transport);
 
 console.log("Printify MCP Server started and connected via stdio");
+
+// Default export
+export default server;
