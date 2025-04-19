@@ -13,6 +13,8 @@ A Model Context Protocol (MCP) server for integrating AI assistants with Printif
   - [Starting the Server](#starting-the-server)
   - [Using with Claude Desktop](#using-with-claude-desktop)
   - [Using with Docker](#option-3-use-docker-recommended-for-isolation)
+    - [Docker Hub Image](#option-3a-use-the-docker-image-directly-from-docker-hub)
+    - [Docker Compose](#option-3b-build-and-run-with-docker-compose)
   - [Development Mode](#development-mode)
 - [Available Tools](#available-tools)
   - [Shop Management](#shop-management)
@@ -27,6 +29,8 @@ A Model Context Protocol (MCP) server for integrating AI assistants with Printif
 - [Architecture](#architecture)
   - [Main Components](#main-components)
   - [Docker Architecture](#docker-architecture)
+  - [Publishing the Docker Image](#publishing-the-docker-image)
+  - [Using the Docker Image Without Node.js](#using-the-docker-image-without-nodejs)
   - [File Structure](#file-structure)
 - [API Documentation](#api-documentation)
 - [Troubleshooting](#troubleshooting)
@@ -217,7 +221,56 @@ If you don't want to install the package globally, you can use npx:
 
 ### Option 3: Use Docker (Recommended for Isolation)
 
-If you prefer to run the server in a Docker container:
+If you prefer to run the server in a Docker container, you have two options:
+
+#### Option 3A: Use the Docker Image Directly from Docker Hub
+
+1. Make sure you have Docker installed on your system
+
+2. Create a directory for your Printify MCP files:
+   ```bash
+   mkdir printify-mcp
+   cd printify-mcp
+   ```
+
+3. Create a `.env` file with your API keys:
+   ```
+   PRINTIFY_API_KEY=your_printify_api_key
+   PRINTIFY_SHOP_ID=your_shop_id (optional)
+   REPLICATE_API_TOKEN=your_replicate_api_token
+   ```
+
+4. Create a temp directory for temporary files:
+   ```bash
+   mkdir temp
+   ```
+
+5. Run the Docker container:
+   ```bash
+   # For Linux/macOS:
+   docker run -it --name printify-mcp \
+     -v $(pwd)/.env:/app/.env:ro \
+     -v $(pwd)/temp:/app/temp \
+     tsavo/printify-mcp:latest
+
+   # For Windows PowerShell:
+   docker run -it --name printify-mcp -v ${PWD}/.env:/app/.env:ro -v ${PWD}/temp:/app/temp tsavo/printify-mcp:latest
+
+   # For Windows Command Prompt:
+   docker run -it --name printify-mcp -v %cd%/.env:/app/.env:ro -v %cd%/temp:/app/temp tsavo/printify-mcp:latest
+   ```
+
+6. Configure Claude Desktop:
+   - Open Claude Desktop
+   - Go to Settings > MCP Servers
+   - Click "Add Server"
+   - Enter a name for the server (e.g., "Printify MCP Docker")
+   - Select "Command" as the transport type
+   - Enter `docker` as the command
+   - Enter `exec -i printify-mcp node dist/index.js` as the arguments
+   - Click "Add Server"
+
+#### Option 3B: Build and Run with Docker Compose
 
 1. Make sure you have Docker and Docker Compose installed on your system
 
@@ -630,7 +683,7 @@ The Printify MCP server consists of three main components:
 The Docker setup consists of the following components:
 
 1. **Dockerfile**: Defines how to build the Docker image
-   - Uses Node.js 18 Alpine as the base image for a small footprint
+   - Uses Node.js 22 Alpine as the base image for a small footprint
    - Installs dependencies and builds the TypeScript code
    - Sets up the environment and runs the server
 
@@ -643,6 +696,63 @@ The Docker setup consists of the following components:
 3. **Volumes**:
    - `.env`: Mounted as a read-only volume for environment variables
    - `temp`: Mounted as a volume for temporary files (like generated images)
+
+### Publishing the Docker Image
+
+You can publish the Docker image to Docker Hub or any other container registry to make it available to others without requiring them to install Node.js or clone the repository.
+
+1. **Build the Docker image**:
+   ```bash
+   docker build -t tsavo/printify-mcp:latest .
+   ```
+
+2. **Log in to Docker Hub**:
+   ```bash
+   docker login
+   ```
+
+3. **Push the image to Docker Hub**:
+   ```bash
+   docker push tsavo/printify-mcp:latest
+   ```
+
+### Using the Docker Image Without Node.js
+
+Users can run the Printify MCP server without installing Node.js by using the Docker image directly:
+
+1. **Install Docker**: Users need to have Docker installed on their system
+
+2. **Create a .env file** with their API keys:
+   ```
+   PRINTIFY_API_KEY=their_printify_api_key
+   PRINTIFY_SHOP_ID=their_shop_id (optional)
+   REPLICATE_API_TOKEN=their_replicate_api_token
+   ```
+
+3. **Create a temp directory** for temporary files:
+   ```bash
+   mkdir -p temp
+   ```
+
+4. **Run the Docker container**:
+   ```bash
+   docker run -it --name printify-mcp \
+     -v $(pwd)/.env:/app/.env:ro \
+     -v $(pwd)/temp:/app/temp \
+     tsavo/printify-mcp:latest
+   ```
+
+5. **Configure Claude Desktop**:
+   - Open Claude Desktop
+   - Go to Settings > MCP Servers
+   - Click "Add Server"
+   - Enter a name for the server (e.g., "Printify MCP Docker")
+   - Select "Command" as the transport type
+   - Enter `docker` as the command
+   - Enter `exec -i printify-mcp node dist/index.js` as the arguments
+   - Click "Add Server"
+
+This approach allows users to run the Printify MCP server without installing Node.js or any other dependencies - they only need Docker.
 
 ### File Structure
 
@@ -720,14 +830,32 @@ If you encounter errors when uploading an image, check that:
 If you're using the Docker setup and encounter issues:
 
 1. **Container not starting**: Check Docker logs with `docker logs printify-mcp`
-2. **Environment variables not working**: Make sure your `.env` file is in the same directory as your docker-compose.yml file
+2. **Environment variables not working**: Make sure your `.env` file is in the same directory as your docker-compose.yml file or the directory where you run the `docker run` command
 3. **Permission issues with temp directory**: The temp directory is mounted as a volume, ensure it has the correct permissions
 4. **Connection issues from Claude**: Make sure the Docker container is running with `docker ps` and that you've configured Claude Desktop correctly
+5. **Image not found**: If using the Docker Hub image directly, make sure you've pulled it with `docker pull tsavo/printify-mcp:latest`
 
-To restart the Docker container:
+To restart the Docker container when using docker-compose:
 ```bash
 docker-compose down
 docker-compose up -d
+```
+
+To restart the Docker container when using docker run:
+```bash
+docker stop printify-mcp
+docker rm printify-mcp
+docker run -it --name printify-mcp -v $(pwd)/.env:/app/.env:ro -v $(pwd)/temp:/app/temp tsavo/printify-mcp:latest
+```
+
+For Windows users using PowerShell with the Docker image directly:
+```powershell
+docker run -it --name printify-mcp -v ${PWD}/.env:/app/.env:ro -v ${PWD}/temp:/app/temp tsavo/printify-mcp:latest
+```
+
+For Windows users using Command Prompt with the Docker image directly:
+```cmd
+docker run -it --name printify-mcp -v %cd%/.env:/app/.env:ro -v %cd%/temp:/app/temp tsavo/printify-mcp:latest
 ```
 
 ### Debugging
