@@ -1,6 +1,6 @@
 {
   "name": "@tsavo/printify-mcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A Model Context Protocol (MCP) server for integrating AI assistants with Printify's print-on-demand platform",
   "type": "module",
   "main": "dist/index.js",
@@ -17,12 +17,14 @@
   },
   "files": [
     "dist",
+    "src/docs",
     "index.js",
     "README.md",
     "LICENSE"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && npm run copy-docs",
+    "copy-docs": "mkdir -p dist/docs && cp -r src/docs/* dist/docs/",
     "start": "node dist/index.js",
     "dev": "tsc -w & node --watch dist/index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
