@@ -102,8 +102,13 @@ You have two options for configuring the environment variables needed by the ser
 1. Create a `.env` file in the root directory of the project with the following variables:
 
 ```
+# Required for all functionality
 PRINTIFY_API_KEY=your_printify_api_key
-PRINTIFY_SHOP_ID=your_shop_id (optional)
+
+# Optional: If not provided, the first shop in your account will be used
+PRINTIFY_SHOP_ID=your_shop_id
+
+# Optional: Only needed if you want to use image generation features
 REPLICATE_API_TOKEN=your_replicate_api_token
 ```
 
@@ -120,22 +125,37 @@ Alternatively, you can set these variables directly in your system environment:
 
 **Windows (Command Prompt):**
 ```cmd
+:: Required
 set PRINTIFY_API_KEY=your_printify_api_key
+
+:: Optional
 set PRINTIFY_SHOP_ID=your_shop_id
+
+:: Optional - only for image generation
 set REPLICATE_API_TOKEN=your_replicate_api_token
 ```
 
 **Windows (PowerShell):**
 ```powershell
+# Required
 $env:PRINTIFY_API_KEY = "your_printify_api_key"
+
+# Optional
 $env:PRINTIFY_SHOP_ID = "your_shop_id"
+
+# Optional - only for image generation
 $env:REPLICATE_API_TOKEN = "your_replicate_api_token"
 ```
 
 **macOS/Linux:**
 ```bash
+# Required
 export PRINTIFY_API_KEY=your_printify_api_key
+
+# Optional
 export PRINTIFY_SHOP_ID=your_shop_id
+
+# Optional - only for image generation
 export REPLICATE_API_TOKEN=your_replicate_api_token
 ```
 
@@ -252,7 +272,6 @@ If you prefer to run the server in a Docker container, you have two options:
    # For Linux/macOS/Windows PowerShell:
    docker run -it --name printify-mcp \
      -e PRINTIFY_API_KEY=your_printify_api_key \
-     -e REPLICATE_API_TOKEN=your_replicate_api_token \
      -e PRINTIFY_SHOP_ID=your_shop_id_optional \
      -v $(pwd)/temp:/app/temp \
      tsavo/printify-mcp:latest
@@ -260,10 +279,14 @@ If you prefer to run the server in a Docker container, you have two options:
    # For Windows Command Prompt:
    docker run -it --name printify-mcp ^
      -e PRINTIFY_API_KEY=your_printify_api_key ^
-     -e REPLICATE_API_TOKEN=your_replicate_api_token ^
      -e PRINTIFY_SHOP_ID=your_shop_id_optional ^
      -v %cd%/temp:/app/temp ^
      tsavo/printify-mcp:latest
+   ```
+
+   **Note:** If you want to use the image generation features (generate-and-upload-image tool), add the Replicate API token:
+   ```bash
+   -e REPLICATE_API_TOKEN=your_replicate_api_token \
    ```
 
    **Option B: Using a .env file**
@@ -311,6 +334,7 @@ If you prefer to run the server in a Docker container, you have two options:
      # Option 1: Set environment variables directly (recommended)
      - PRINTIFY_API_KEY=your_printify_api_key
      - PRINTIFY_SHOP_ID=your_shop_id_optional
+     # Optional: Only needed if you want to use image generation features
      - REPLICATE_API_TOKEN=your_replicate_api_token
    ```
 
@@ -318,6 +342,7 @@ If you prefer to run the server in a Docker container, you have two options:
    ```
    PRINTIFY_API_KEY=your_printify_api_key
    PRINTIFY_SHOP_ID=your_shop_id (optional)
+   # Optional: Only needed if you want to use image generation features
    REPLICATE_API_TOKEN=your_replicate_api_token
    ```
    Then uncomment the .env volume mount in docker-compose.yml:
@@ -773,10 +798,14 @@ Users can run the Printify MCP server without installing Node.js by using the Do
    ```bash
    docker run -it --name printify-mcp \
      -e PRINTIFY_API_KEY=their_printify_api_key \
-     -e REPLICATE_API_TOKEN=their_replicate_api_token \
      -e PRINTIFY_SHOP_ID=their_shop_id_optional \
      -v $(pwd)/temp:/app/temp \
      tsavo/printify-mcp:latest
+   ```
+
+   **Note:** If they want to use the image generation features (generate-and-upload-image tool), add the Replicate API token:
+   ```bash
+   -e REPLICATE_API_TOKEN=their_replicate_api_token \
    ```
 
    **Option B: Using a .env file**
@@ -784,6 +813,7 @@ Users can run the Printify MCP server without installing Node.js by using the Do
    ```
    PRINTIFY_API_KEY=their_printify_api_key
    PRINTIFY_SHOP_ID=their_shop_id (optional)
+   # Optional: Only needed if they want to use image generation features
    REPLICATE_API_TOKEN=their_replicate_api_token
    ```
 

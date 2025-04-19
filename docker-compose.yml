@@ -17,6 +17,7 @@ services:
       # Option 1: Set environment variables directly (recommended)
       # - PRINTIFY_API_KEY=your_printify_api_key
       # - PRINTIFY_SHOP_ID=your_shop_id_optional
+      # Optional: Only needed if you want to use image generation features
       # - REPLICATE_API_TOKEN=your_replicate_api_token
 
       # Option 2: Use environment variables from .env file
