@@ -1,20 +1,32 @@
 version: '3'
 
+# There are two ways to configure environment variables:
+# 1. Using a .env file (uncomment the volume mount below)
+# 2. Setting environment variables directly (uncomment and set the environment variables below)
+
 services:
   printify-mcp:
     build: .
+    # Or use the image from Docker Hub
+    # image: tsavo/printify-mcp:latest
     container_name: printify-mcp
     stdin_open: true  # Keep STDIN open for stdio transport
     tty: true         # Allocate a pseudo-TTY
     environment:
       - NODE_ENV=production
-      # Uncomment and set these values in your environment or .env file
+      # Option 1: Set environment variables directly (recommended)
+      # - PRINTIFY_API_KEY=your_printify_api_key
+      # - PRINTIFY_SHOP_ID=your_shop_id_optional
+      # - REPLICATE_API_TOKEN=your_replicate_api_token
+
+      # Option 2: Use environment variables from .env file
       # - PRINTIFY_API_KEY=${PRINTIFY_API_KEY}
       # - PRINTIFY_SHOP_ID=${PRINTIFY_SHOP_ID}
       # - REPLICATE_API_TOKEN=${REPLICATE_API_TOKEN}
     volumes:
-      # Mount a .env file for environment variables
-      - ./.env:/app/.env:ro
-      # Mount a volume for temporary files
+      # Option 2: Mount a .env file for environment variables
+      # - ./.env:/app/.env:ro
+
+      # Always mount a volume for temporary files
       - ./temp:/app/temp
     restart: unless-stopped

@@ -245,7 +245,28 @@ If you prefer to run the server in a Docker container, you have two options:
    mkdir temp
    ```
 
-5. Run the Docker container:
+5. Run the Docker container (two options):
+
+   **Option A: Using environment variables directly (Recommended)**
+   ```bash
+   # For Linux/macOS/Windows PowerShell:
+   docker run -it --name printify-mcp \
+     -e PRINTIFY_API_KEY=your_printify_api_key \
+     -e REPLICATE_API_TOKEN=your_replicate_api_token \
+     -e PRINTIFY_SHOP_ID=your_shop_id_optional \
+     -v $(pwd)/temp:/app/temp \
+     tsavo/printify-mcp:latest
+
+   # For Windows Command Prompt:
+   docker run -it --name printify-mcp ^
+     -e PRINTIFY_API_KEY=your_printify_api_key ^
+     -e REPLICATE_API_TOKEN=your_replicate_api_token ^
+     -e PRINTIFY_SHOP_ID=your_shop_id_optional ^
+     -v %cd%/temp:/app/temp ^
+     tsavo/printify-mcp:latest
+   ```
+
+   **Option B: Using a .env file**
    ```bash
    # For Linux/macOS:
    docker run -it --name printify-mcp \
@@ -280,11 +301,30 @@ If you prefer to run the server in a Docker container, you have two options:
    cd printify-mcp
    ```
 
-3. Create a `.env` file with your API keys:
+3. Configure environment variables (two options):
+
+   **Option A: Edit docker-compose.yml directly (Recommended)**
+   Open docker-compose.yml and uncomment/edit the environment variables:
+   ```yaml
+   environment:
+     - NODE_ENV=production
+     # Option 1: Set environment variables directly (recommended)
+     - PRINTIFY_API_KEY=your_printify_api_key
+     - PRINTIFY_SHOP_ID=your_shop_id_optional
+     - REPLICATE_API_TOKEN=your_replicate_api_token
+   ```
+
+   **Option B: Create a `.env` file**
    ```
    PRINTIFY_API_KEY=your_printify_api_key
    PRINTIFY_SHOP_ID=your_shop_id (optional)
    REPLICATE_API_TOKEN=your_replicate_api_token
+   ```
+   Then uncomment the .env volume mount in docker-compose.yml:
+   ```yaml
+   volumes:
+     # Option 2: Mount a .env file for environment variables
+     - ./.env:/app/.env:ro
    ```
 
 4. Build and start the Docker container:
@@ -722,19 +762,32 @@ Users can run the Printify MCP server without installing Node.js by using the Do
 
 1. **Install Docker**: Users need to have Docker installed on their system
 
-2. **Create a .env file** with their API keys:
+2. **Create a temp directory** for temporary files:
+   ```bash
+   mkdir -p temp
+   ```
+
+3. **Run the Docker container** (two options):
+
+   **Option A: Using environment variables directly (Recommended)**
+   ```bash
+   docker run -it --name printify-mcp \
+     -e PRINTIFY_API_KEY=their_printify_api_key \
+     -e REPLICATE_API_TOKEN=their_replicate_api_token \
+     -e PRINTIFY_SHOP_ID=their_shop_id_optional \
+     -v $(pwd)/temp:/app/temp \
+     tsavo/printify-mcp:latest
+   ```
+
+   **Option B: Using a .env file**
+   First, create a .env file with their API keys:
    ```
    PRINTIFY_API_KEY=their_printify_api_key
    PRINTIFY_SHOP_ID=their_shop_id (optional)
    REPLICATE_API_TOKEN=their_replicate_api_token
    ```
 
-3. **Create a temp directory** for temporary files:
-   ```bash
-   mkdir -p temp
-   ```
-
-4. **Run the Docker container**:
+   Then run the container:
    ```bash
    docker run -it --name printify-mcp \
      -v $(pwd)/.env:/app/.env:ro \
@@ -742,7 +795,7 @@ Users can run the Printify MCP server without installing Node.js by using the Do
      tsavo/printify-mcp:latest
    ```
 
-5. **Configure Claude Desktop**:
+4. **Configure Claude Desktop**:
    - Open Claude Desktop
    - Go to Settings > MCP Servers
    - Click "Add Server"
@@ -830,7 +883,7 @@ If you encounter errors when uploading an image, check that:
 If you're using the Docker setup and encounter issues:
 
 1. **Container not starting**: Check Docker logs with `docker logs printify-mcp`
-2. **Environment variables not working**: Make sure your `.env` file is in the same directory as your docker-compose.yml file or the directory where you run the `docker run` command
+2. **Environment variables not working**: If using a .env file, make sure it's in the same directory as your docker-compose.yml file or the directory where you run the `docker run` command. If setting environment variables directly with `-e`, check for typos in variable names
 3. **Permission issues with temp directory**: The temp directory is mounted as a volume, ensure it has the correct permissions
 4. **Connection issues from Claude**: Make sure the Docker container is running with `docker ps` and that you've configured Claude Desktop correctly
 5. **Image not found**: If using the Docker Hub image directly, make sure you've pulled it with `docker pull tsavo/printify-mcp:latest`
