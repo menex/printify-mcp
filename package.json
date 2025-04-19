@@ -1,6 +1,6 @@
 {
-  "name": "printify-mcp",
-  "version": "1.0.0",
+  "name": "@tsavo/printify-mcp",
+  "version": "0.0.1",
   "description": "A Model Context Protocol (MCP) server for integrating AI assistants with Printify's print-on-demand platform",
   "type": "module",
   "main": "dist/index.js",
@@ -13,7 +13,7 @@
   },
   "types": "dist/index.d.ts",
   "bin": {
-    "printify-mcp": "dist/cli.js"
+    "printify-mcp": "dist/index.js"
   },
   "files": [
     "dist",

@@ -1,0 +1,20 @@
+version: '3'
+
+services:
+  printify-mcp:
+    build: .
+    container_name: printify-mcp
+    stdin_open: true  # Keep STDIN open for stdio transport
+    tty: true         # Allocate a pseudo-TTY
+    environment:
+      - NODE_ENV=production
+      # Uncomment and set these values in your environment or .env file
+      # - PRINTIFY_API_KEY=${PRINTIFY_API_KEY}
+      # - PRINTIFY_SHOP_ID=${PRINTIFY_SHOP_ID}
+      # - REPLICATE_API_TOKEN=${REPLICATE_API_TOKEN}
+    volumes:
+      # Mount a .env file for environment variables
+      - ./.env:/app/.env:ro
+      # Mount a volume for temporary files
+      - ./temp:/app/temp
+    restart: unless-stopped

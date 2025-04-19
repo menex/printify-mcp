@@ -12,6 +12,7 @@ A Model Context Protocol (MCP) server for integrating AI assistants with Printif
 - [Usage](#usage)
   - [Starting the Server](#starting-the-server)
   - [Using with Claude Desktop](#using-with-claude-desktop)
+  - [Using with Docker](#option-3-use-docker-recommended-for-isolation)
   - [Development Mode](#development-mode)
 - [Available Tools](#available-tools)
   - [Shop Management](#shop-management)
@@ -25,9 +26,13 @@ A Model Context Protocol (MCP) server for integrating AI assistants with Printif
   - [Managing Existing Products](#managing-existing-products)
 - [Architecture](#architecture)
   - [Main Components](#main-components)
+  - [Docker Architecture](#docker-architecture)
   - [File Structure](#file-structure)
 - [API Documentation](#api-documentation)
 - [Troubleshooting](#troubleshooting)
+  - [Common Issues](#common-issues)
+  - [Docker-Specific Issues](#docker-specific-issues)
+  - [Debugging](#debugging)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -166,13 +171,13 @@ This will start the server in development mode with automatic reloading when fil
 
 ## Using with Claude Desktop
 
-There are two ways to use this MCP server with Claude Desktop:
+There are three ways to use this MCP server with Claude Desktop:
 
 ### Option 1: Install from npm (Recommended)
 
 1. Install the package globally:
    ```bash
-   npm install -g printify-mcp
+   npm install -g @tsavo/printify-mcp
    ```
 
 2. Configure your environment variables using either a `.env` file in your current directory or system environment variables as described in the [Configuration](#configuration) section.
@@ -192,6 +197,8 @@ There are two ways to use this MCP server with Claude Desktop:
    Can you check the status of my Printify connection?
    ```
 
+   The `printify-mcp` command runs the same code as the original index.ts file, but packaged as an executable that can be run directly from the command line.
+
 ### Option 2: Use with npx
 
 If you don't want to install the package globally, you can use npx:
@@ -205,12 +212,51 @@ If you don't want to install the package globally, you can use npx:
    - Enter a name for the server (e.g., "Printify MCP")
    - Select "Command" as the transport type
    - Enter `npx` as the command
-   - Enter `printify-mcp` as the arguments
+   - Enter `@tsavo/printify-mcp` as the arguments
    - Click "Add Server"
 
-### Option 3: Clone and Set Up the Repository
+### Option 3: Use Docker (Recommended for Isolation)
 
-If you prefer to work with the source code directly:
+If you prefer to run the server in a Docker container:
+
+1. Make sure you have Docker and Docker Compose installed on your system
+
+2. Clone this repository to your local machine:
+   ```bash
+   git clone https://github.com/tsavo/printify-mcp.git
+   cd printify-mcp
+   ```
+
+3. Create a `.env` file with your API keys:
+   ```
+   PRINTIFY_API_KEY=your_printify_api_key
+   PRINTIFY_SHOP_ID=your_shop_id (optional)
+   REPLICATE_API_TOKEN=your_replicate_api_token
+   ```
+
+4. Build and start the Docker container:
+   ```bash
+   docker-compose up -d
+   ```
+
+5. Configure Claude Desktop:
+   - Open Claude Desktop
+   - Go to Settings > MCP Servers
+   - Click "Add Server"
+   - Enter a name for the server (e.g., "Printify MCP Docker")
+   - Select "Command" as the transport type
+   - Enter `docker` as the command
+   - Enter `exec -i printify-mcp node dist/index.js` as the arguments
+   - Click "Add Server"
+
+6. Test the connection by asking Claude to check the Printify status:
+   ```
+   Can you check the status of my Printify connection?
+   ```
+
+### Option 4: Clone and Set Up the Repository
+
+If you prefer to work with the source code directly without Docker:
 
 1. Clone this repository to your local machine:
    ```bash
@@ -579,6 +625,25 @@ The Printify MCP server consists of three main components:
 2. **Printify API Client (`src/printify-api.ts`)**: Handles communication with Printify's API using the official SDK.
 3. **Replicate Client (`src/replicate-client.ts`)**: Integrates with Replicate's API to generate images for product designs.
 
+### Docker Architecture
+
+The Docker setup consists of the following components:
+
+1. **Dockerfile**: Defines how to build the Docker image
+   - Uses Node.js 18 Alpine as the base image for a small footprint
+   - Installs dependencies and builds the TypeScript code
+   - Sets up the environment and runs the server
+
+2. **docker-compose.yml**: Defines the service configuration
+   - Sets up environment variables
+   - Mounts volumes for .env file and temp directory
+   - Configures stdin and tty for stdio transport
+   - Sets restart policy
+
+3. **Volumes**:
+   - `.env`: Mounted as a read-only volume for environment variables
+   - `temp`: Mounted as a volume for temporary files (like generated images)
+
 ### File Structure
 
 ```
@@ -594,9 +659,12 @@ printify-mcp/
 │   ├── printify-api.ts    # Printify API client
 │   └── replicate-client.ts # Replicate API client
 ├── temp/                  # Temporary directory for generated images
+├── .dockerignore          # Files to exclude from Docker build
 ├── .env                   # Environment variables (not in repo)
 ├── .env.example           # Example environment variables
 ├── .gitignore             # Git ignore file
+├── docker-compose.yml     # Docker Compose configuration
+├── Dockerfile             # Docker build instructions
 ├── package.json           # Node.js package configuration
 ├── package-lock.json      # Node.js package lock
 ├── README.md              # This file
@@ -647,9 +715,34 @@ If you encounter errors when uploading an image, check that:
 3. If using a URL, it is publicly accessible
 4. If using a local file, it exists and is readable
 
+#### Docker-Specific Issues
+
+If you're using the Docker setup and encounter issues:
+
+1. **Container not starting**: Check Docker logs with `docker logs printify-mcp`
+2. **Environment variables not working**: Make sure your `.env` file is in the same directory as your docker-compose.yml file
+3. **Permission issues with temp directory**: The temp directory is mounted as a volume, ensure it has the correct permissions
+4. **Connection issues from Claude**: Make sure the Docker container is running with `docker ps` and that you've configured Claude Desktop correctly
+
+To restart the Docker container:
+```bash
+docker-compose down
+docker-compose up -d
+```
+
 ### Debugging
 
 The server includes detailed logging to help troubleshoot issues. Check the console output for error messages and debugging information.
+
+For Docker deployments, you can view logs with:
+```bash
+docker logs printify-mcp
+```
+
+To follow the logs in real-time:
+```bash
+docker logs -f printify-mcp
+```
 
 ## Contributing
 
