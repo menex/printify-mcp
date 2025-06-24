@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Printify Product Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        [x-cloak] { display: none !important; }
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        .loading-spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .status-badge {
+            @apply px-3 py-1 rounded-full text-xs font-medium;
+        }
+        .status-published {
+            @apply bg-green-100 text-green-800;
+        }
+        .status-draft {
+            @apply bg-yellow-100 text-yellow-800;
+        }
+        .status-locked {
+            @apply bg-red-100 text-red-800;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div x-data="productManager()" x-cloak>
+        <!-- Header -->
+        <header class="gradient-bg shadow-lg">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex justify-between items-center py-6">
+                    <div class="flex items-center space-x-4">
+                        <div class="bg-white p-2 rounded-lg shadow-md">
+                            <i class="fas fa-print text-2xl text-indigo-600"></i>
+                        </div>
+                        <div>
+                            <h1 class="text-3xl font-bold text-white">Printify Manager</h1>
+                            <p class="text-indigo-100">Manage your print-on-demand products</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <div class="bg-white/10 backdrop-blur-sm rounded-lg px-4 py-2">
+                            <span class="text-white text-sm">Shop: </span>
+                            <span class="text-white font-semibold" x-text="currentShop?.title || 'Loading...'"></span>
+                        </div>
+                        <button 
+                            @click="refreshData()"
+                            class="bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg transition-colors duration-200 flex items-center space-x-2"
+                            :disabled="loading"
+                        >
+                            <i class="fas fa-sync-alt" :class="{ 'animate-spin': loading }"></i>
+                            <span>Refresh</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Content -->
+        <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+            <!-- Stats Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                <div class="bg-white rounded-xl shadow-md p-6 card-hover">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-blue-100 text-blue-600">
+                            <i class="fas fa-box text-xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-600">Total Products</p>
+                            <p class="text-2xl font-bold text-gray-900" x-text="products.length"></p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-xl shadow-md p-6 card-hover">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-green-100 text-green-600">
+                            <i class="fas fa-check-circle text-xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-600">Published</p>
+                            <p class="text-2xl font-bold text-gray-900" x-text="publishedCount"></p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-xl shadow-md p-6 card-hover">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-yellow-100 text-yellow-600">
+                            <i class="fas fa-edit text-xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-600">Drafts</p>
+                            <p class="text-2xl font-bold text-gray-900" x-text="draftCount"></p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="bg-white rounded-xl shadow-md p-6 card-hover">
+                    <div class="flex items-center">
+                        <div class="p-3 rounded-full bg-purple-100 text-purple-600">
+                            <i class="fas fa-palette text-xl"></i>
+                        </div>
+                        <div class="ml-4">
+                            <p class="text-sm font-medium text-gray-600">Blueprints</p>
+                            <p class="text-2xl font-bold text-gray-900" x-text="uniqueBlueprints"></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filters and Search -->
+            <div class="bg-white rounded-xl shadow-md p-6 mb-8">
+                <div class="flex flex-col md:flex-row md:items-center md:justify-between space-y-4 md:space-y-0">
+                    <div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4">
+                        <div class="relative">
+                            <input 
+                                type="text" 
+                                x-model="searchTerm"
+                                placeholder="Search products..."
+                                class="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent w-full sm:w-64"
+                            >
+                            <i class="fas fa-search absolute left-3 top-3 text-gray-400"></i>
+                        </div>
+                        
+                        <select 
+                            x-model="statusFilter"
+                            class="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                        >
+                            <option value="">All Status</option>
+                            <option value="published">Published</option>
+                            <option value="draft">Draft</option>
+                            <option value="locked">Locked</option>
+                        </select>
+                    </div>
+                    
+                    <button 
+                        @click="showCreateModal = true"
+                        class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg transition-colors duration-200 flex items-center space-x-2"
+                    >
+                        <i class="fas fa-plus"></i>
+                        <span>Create Product</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Products Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" x-show="!loading">
+                <template x-for="product in filteredProducts" :key="product.id">
+                    <div class="bg-white rounded-xl shadow-md overflow-hidden card-hover">
+                        <!-- Product Image -->
+                        <div class="h-48 bg-gradient-to-br from-gray-100 to-gray-200 relative overflow-hidden">
+                            <template x-if="product.images && product.images.length > 0">
+                                <img 
+                                    :src="product.images[0].src" 
+                                    :alt="product.title"
+                                    class="w-full h-full object-cover"
+                                    @error="$event.target.style.display = 'none'"
+                                >
+                            </template>
+                            <template x-if="!product.images || product.images.length === 0">
+                                <div class="w-full h-full flex items-center justify-center">
+                                    <i class="fas fa-image text-4xl text-gray-400"></i>
+                                </div>
+                            </template>
+                            
+                            <!-- Status Badge -->
+                            <div class="absolute top-3 right-3">
+                                <span 
+                                    class="status-badge"
+                                    :class="{
+                                        'status-published': product.visible && !product.is_locked,
+                                        'status-draft': !product.visible && !product.is_locked,
+                                        'status-locked': product.is_locked
+                                    }"
+                                    x-text="getProductStatus(product)"
+                                ></span>
+                            </div>
+                        </div>
+                        
+                        <!-- Product Info -->
+                        <div class="p-6">
+                            <h3 class="text-lg font-semibold text-gray-900 mb-2 line-clamp-2" x-text="product.title"></h3>
+                            <p class="text-gray-600 text-sm mb-4 line-clamp-3" x-text="product.description"></p>
+                            
+                            <!-- Product Details -->
+                            <div class="space-y-2 mb-4">
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-gray-500">Blueprint:</span>
+                                    <span class="font-medium" x-text="getBlueprintName(product.blueprint_id)"></span>
+                                </div>
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-gray-500">Variants:</span>
+                                    <span class="font-medium" x-text="product.variants?.length || 0"></span>
+                                </div>
+                                <div class="flex justify-between text-sm">
+                                    <span class="text-gray-500">Created:</span>
+                                    <span class="font-medium" x-text="formatDate(product.created_at)"></span>
+                                </div>
+                            </div>
+                            
+                            <!-- Actions -->
+                            <div class="flex space-x-2">
+                                <button 
+                                    @click="viewProduct(product)"
+                                    class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 px-4 py-2 rounded-lg transition-colors duration-200 text-sm font-medium"
+                                >
+                                    <i class="fas fa-eye mr-1"></i>
+                                    View
+                                </button>
+                                <button 
+                                    @click="editProduct(product)"
+                                    class="flex-1 bg-indigo-100 hover:bg-indigo-200 text-indigo-700 px-4 py-2 rounded-lg transition-colors duration-200 text-sm font-medium"
+                                >
+                                    <i class="fas fa-edit mr-1"></i>
+                                    Edit
+                                </button>
+                                <button 
+                                    @click="deleteProduct(product)"
+                                    class="bg-red-100 hover:bg-red-200 text-red-700 px-3 py-2 rounded-lg transition-colors duration-200 text-sm"
+                                >
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Loading State -->
+            <div x-show="loading" class="flex justify-center items-center py-12">
+                <div class="text-center">
+                    <div class="loading-spinner mx-auto mb-4"></div>
+                    <p class="text-gray-600">Loading products...</p>
+                </div>
+            </div>
+
+            <!-- Empty State -->
+            <div x-show="!loading && filteredProducts.length === 0" class="text-center py-12">
+                <div class="bg-white rounded-xl shadow-md p-12">
+                    <i class="fas fa-box-open text-6xl text-gray-300 mb-4"></i>
+                    <h3 class="text-xl font-semibold text-gray-900 mb-2">No products found</h3>
+                    <p class="text-gray-600 mb-6">Get started by creating your first product</p>
+                    <button 
+                        @click="showCreateModal = true"
+                        class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-lg transition-colors duration-200"
+                    >
+                        <i class="fas fa-plus mr-2"></i>
+                        Create Your First Product
+                    </button>
+                </div>
+            </div>
+        </main>
+
+        <!-- Create Product Modal -->
+        <div x-show="showCreateModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div class="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+                <div class="p-6 border-b border-gray-200">
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-2xl font-bold text-gray-900">Create New Product</h2>
+                        <button @click="showCreateModal = false" class="text-gray-400 hover:text-gray-600">
+                            <i class="fas fa-times text-xl"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="p-6">
+                    <div class="text-center py-8">
+                        <i class="fas fa-tools text-4xl text-gray-300 mb-4"></i>
+                        <h3 class="text-lg font-semibold text-gray-900 mb-2">Product Creation</h3>
+                        <p class="text-gray-600 mb-6">Use the Printify MCP tools in your AI assistant to create products with advanced features like AI-generated designs.</p>
+                        <div class="bg-gray-50 rounded-lg p-4 text-left">
+                            <h4 class="font-semibold text-gray-900 mb-2">Example workflow:</h4>
+                            <ol class="text-sm text-gray-600 space-y-1">
+                                <li>1. Browse blueprints with <code class="bg-gray-200 px-1 rounded">get-blueprints</code></li>
+                                <li>2. Select print providers with <code class="bg-gray-200 px-1 rounded">get-print-providers</code></li>
+                                <li>3. Choose variants with <code class="bg-gray-200 px-1 rounded">get-variants</code></li>
+                                <li>4. Generate designs with <code class="bg-gray-200 px-1 rounded">generate-and-upload-image</code></li>
+                                <li>5. Create product with <code class="bg-gray-200 px-1 rounded">create-product</code></li>
+                            </ol>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Product Detail Modal -->
+        <div x-show="showDetailModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div class="bg-white rounded-xl shadow-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+                <div class="p-6 border-b border-gray-200">
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-2xl font-bold text-gray-900" x-text="selectedProduct?.title"></h2>
+                        <button @click="showDetailModal = false" class="text-gray-400 hover:text-gray-600">
+                            <i class="fas fa-times text-xl"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="p-6" x-show="selectedProduct">
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <!-- Product Images -->
+                        <div>
+                            <h3 class="text-lg font-semibold mb-4">Product Images</h3>
+                            <div class="space-y-4">
+                                <template x-for="image in selectedProduct?.images || []" :key="image.id">
+                                    <div class="border rounded-lg overflow-hidden">
+                                        <img :src="image.src" :alt="image.alt" class="w-full h-48 object-cover">
+                                        <div class="p-3 bg-gray-50">
+                                            <p class="text-sm text-gray-600" x-text="image.alt"></p>
+                                        </div>
+                                    </div>
+                                </template>
+                            </div>
+                        </div>
+                        
+                        <!-- Product Details -->
+                        <div>
+                            <h3 class="text-lg font-semibold mb-4">Product Details</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Description</label>
+                                    <p class="text-gray-900" x-text="selectedProduct?.description"></p>
+                                </div>
+                                
+                                <div class="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Blueprint ID</label>
+                                        <p class="text-gray-900" x-text="selectedProduct?.blueprint_id"></p>
+                                    </div>
+                                    <div>
+                                        <label class="block text-sm font-medium text-gray-700 mb-1">Print Provider</label>
+                                        <p class="text-gray-900" x-text="selectedProduct?.print_provider_id"></p>
+                                    </div>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Status</label>
+                                    <span 
+                                        class="status-badge"
+                                        :class="{
+                                            'status-published': selectedProduct?.visible && !selectedProduct?.is_locked,
+                                            'status-draft': !selectedProduct?.visible && !selectedProduct?.is_locked,
+                                            'status-locked': selectedProduct?.is_locked
+                                        }"
+                                        x-text="getProductStatus(selectedProduct)"
+                                    ></span>
+                                </div>
+                                
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-1">Variants</label>
+                                    <div class="space-y-2">
+                                        <template x-for="variant in selectedProduct?.variants || []" :key="variant.id">
+                                            <div class="flex justify-between items-center p-2 bg-gray-50 rounded">
+                                                <span x-text="variant.title"></span>
+                                                <span class="font-medium" x-text="'$' + (variant.price / 100).toFixed(2)"></span>
+                                            </div>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function productManager() {
+            return {
+                // State
+                products: [],
+                currentShop: null,
+                loading: true,
+                searchTerm: '',
+                statusFilter: '',
+                showCreateModal: false,
+                showDetailModal: false,
+                selectedProduct: null,
+                
+                // Computed properties
+                get filteredProducts() {
+                    return this.products.filter(product => {
+                        const matchesSearch = !this.searchTerm || 
+                            product.title.toLowerCase().includes(this.searchTerm.toLowerCase()) ||
+                            product.description.toLowerCase().includes(this.searchTerm.toLowerCase());
+                        
+                        const matchesStatus = !this.statusFilter || 
+                            this.getProductStatus(product).toLowerCase() === this.statusFilter;
+                        
+                        return matchesSearch && matchesStatus;
+                    });
+                },
+                
+                get publishedCount() {
+                    return this.products.filter(p => p.visible && !p.is_locked).length;
+                },
+                
+                get draftCount() {
+                    return this.products.filter(p => !p.visible && !p.is_locked).length;
+                },
+                
+                get uniqueBlueprints() {
+                    const blueprints = new Set(this.products.map(p => p.blueprint_id));
+                    return blueprints.size;
+                },
+                
+                // Methods
+                async init() {
+                    await this.loadData();
+                },
+                
+                async loadData() {
+                    this.loading = true;
+                    try {
+                        // Simulate API calls - in a real implementation, these would be actual API calls
+                        await this.delay(1000);
+                        
+                        // Mock data for demonstration
+                        this.products = [
+                            {
+                                id: '1',
+                                title: 'Awesome T-Shirt Design',
+                                description: 'A beautiful t-shirt with an amazing design that customers will love.',
+                                blueprint_id: 12,
+                                print_provider_id: 29,
+                                visible: true,
+                                is_locked: false,
+                                created_at: '2024-01-15T10:30:00Z',
+                                images: [
+                                    { id: '1', src: 'https://images.pexels.com/photos/1020585/pexels-photo-1020585.jpeg?auto=compress&cs=tinysrgb&w=400', alt: 'Front design' }
+                                ],
+                                variants: [
+                                    { id: 1, title: 'Black / S', price: 2499 },
+                                    { id: 2, title: 'Black / M', price: 2499 },
+                                    { id: 3, title: 'Black / L', price: 2499 }
+                                ]
+                            },
+                            {
+                                id: '2',
+                                title: 'Cool Mug Design',
+                                description: 'Perfect for coffee lovers with a unique artistic design.',
+                                blueprint_id: 15,
+                                print_provider_id: 30,
+                                visible: false,
+                                is_locked: false,
+                                created_at: '2024-01-14T15:45:00Z',
+                                images: [
+                                    { id: '2', src: 'https://images.pexels.com/photos/302899/pexels-photo-302899.jpeg?auto=compress&cs=tinysrgb&w=400', alt: 'Mug design' }
+                                ],
+                                variants: [
+                                    { id: 4, title: 'White / 11oz', price: 1599 }
+                                ]
+                            },
+                            {
+                                id: '3',
+                                title: 'Vintage Poster Print',
+                                description: 'A retro-style poster that brings character to any room.',
+                                blueprint_id: 8,
+                                print_provider_id: 25,
+                                visible: true,
+                                is_locked: true,
+                                created_at: '2024-01-13T09:20:00Z',
+                                images: [],
+                                variants: [
+                                    { id: 5, title: '12x16 inches', price: 3999 },
+                                    { id: 6, title: '18x24 inches', price: 5999 }
+                                ]
+                            }
+                        ];
+                        
+                        this.currentShop = {
+                            id: 1,
+                            title: 'My Awesome Store',
+                            sales_channel: 'custom_integration'
+                        };
+                    } catch (error) {
+                        console.error('Error loading data:', error);
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+                
+                async refreshData() {
+                    await this.loadData();
+                },
+                
+                getProductStatus(product) {
+                    if (product.is_locked) return 'Locked';
+                    if (product.visible) return 'Published';
+                    return 'Draft';
+                },
+                
+                getBlueprintName(blueprintId) {
+                    const blueprintNames = {
+                        12: 'T-Shirt',
+                        15: 'Mug',
+                        8: 'Poster'
+                    };
+                    return blueprintNames[blueprintId] || `Blueprint ${blueprintId}`;
+                },
+                
+                formatDate(dateString) {
+                    return new Date(dateString).toLocaleDateString();
+                },
+                
+                viewProduct(product) {
+                    this.selectedProduct = product;
+                    this.showDetailModal = true;
+                },
+                
+                editProduct(product) {
+                    alert(`Edit functionality would open an edit form for: ${product.title}`);
+                },
+                
+                async deleteProduct(product) {
+                    if (confirm(`Are you sure you want to delete "${product.title}"?`)) {
+                        // In a real implementation, this would make an API call
+                        this.products = this.products.filter(p => p.id !== product.id);
+                        alert('Product deleted successfully!');
+                    }
+                },
+                
+                delay(ms) {
+                    return new Promise(resolve => setTimeout(resolve, ms));
+                }
+            }
+        }
+    </script>
+</body>
+</html>
